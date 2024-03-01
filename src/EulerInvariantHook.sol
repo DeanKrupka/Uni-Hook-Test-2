@@ -2,14 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {BaseHook} from "v4-periphery/BaseHook.sol";
-import {FixedPointMathLib} from "solady/utils/FixedPointMathLib.sol"; 
+import {FixedPointMathLib} from "../lib/solady/src/utils/FixedPointMathLib.sol"; 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 
-contract Counter is BaseHook {
+contract EulerInvariantHook is BaseHook {
     using PoolIdLibrary for PoolKey;
     using FixedPointMathLib for uint256;
     using FixedPointMathLib for int256;
@@ -56,11 +57,14 @@ contract Counter is BaseHook {
     /// @notice Calculate the amount of tokens sent to the swapper
     /// @param params SwapParams passed to the swap function
     /// @return The amount of tokens sent to the swapper
-    function getTokenOutAmount(IPoolManager.SwapParams calldata params, Currency inputToken, Currency outputToken) public pure returns (uint256) {
-        int256 inputAmount; // was uint256 before
+    function getTokenOutAmount(IPoolManager.SwapParams calldata params, Currency inputToken, Currency outputToken) public view returns (uint256) {
+        uint256 inputAmount; 
         uint256 inputReserves = inputToken.balanceOfSelf();
         uint256 outputReserves = outputToken.balanceOfSelf();
-        int256 output = -FixedPointMathLib.lambertW0Wad(inputAmount.expWad(2-(inputReserves+inputAmount)).sDivWad(inputReserves+inputAmount)) - outputReserves;
+        uint256 denominator = inputReserves + inputAmount;
+        int256 numerator = FixedPointMathLib.expWad( 2 - (int256(inputReserves + inputAmount)));
+        int256 product = int256(FixedPointMathLib.rawDiv(uint256(numerator), denominator));
+        int256 output = -FixedPointMathLib.lambertW0Wad(product) - (int256(outputReserves));
         return uint256(output);
     }
 
